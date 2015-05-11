@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/ChimeraCoder/anaconda"
 	"github.com/garyburd/redigo/redis"
@@ -12,11 +13,17 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const (
-	ConfigFilename = "/Users/shinderuman2/src/golang/csv2tweet/bot_config/config.json"
-	CsvPath        = "/Users/shinderuman2/src/golang/csv2tweet/bot_csv/"
+	ConfigFilename = "/Users/shinderuman2/src/golang/csv2tweet/config/bot1-2.json"
+	CsvPath        = "/Users/shinderuman2/src/golang/csv2tweet/csv/"
+	/*
+		ConfigFilename = "/home/shinderuman/src/bot_config/config.json"
+		CsvPath        = "/home/shinderuman/src/bot_csv/bot_csv/"
+	*/
+	TweetMaxLength = 140
 )
 
 type Config struct {
@@ -50,6 +57,7 @@ func main() {
 			fmt.Printf("skipped(outside the period) %s\n", config.Name)
 			continue
 		}
+
 		anaconda.SetConsumerKey(config.TwitterConsumerKey)
 		anaconda.SetConsumerSecret(config.TwitterConsumerSecret)
 		api := anaconda.NewTwitterApi(config.TwitterAccessToken, config.TwitterAccessTokenSecret)
@@ -58,36 +66,44 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		defer file.Close()
 
 		reader := csv.NewReader(file)
 		records, err := reader.ReadAll()
-
-		var record []string
-		if config.Type == "seq" {
-			record = getSequentialRecord(config.Name, records)
-		} else if config.Type == "random" {
-			record = getRandomRecord(config.Name, records)
-		} else {
-			fmt.Printf("invalid type: %s bot_name: %s", config.Type, config.Name)
-			break
+		if err != nil {
+			panic(err)
 		}
 
-		var columnKeys = strings.Split(config.StatusColumns, ",")
-		columns := make([]interface{}, len(columnKeys))
-		for i, keyString := range columnKeys {
-			key, _ := strconv.Atoi(keyString)
-			columns[i] = record[key]
-		}
-
-		var status = fmt.Sprintf(config.StatusFormat, columns...)
-
-		api.PostTweet(status, nil)
-		fmt.Println(status, minute)
-
+		api.PostTweet(getStatus(config, records), nil)
 	}
 }
 
-func getRandomRecord(name string, records [][]string) []string {
+func getStatus(config Config, records [][]string) string {
+	var record []string
+	if config.Type == "seq" {
+		record = getSequentialRecord(config, records)
+	} else if config.Type == "random" {
+		record = getRandomRecord(config, records)
+	} else {
+		panic(errors.New(fmt.Sprintf("invalid type: %s bot_name: %s", config.Type, config.Name)))
+	}
+
+	var columnKeys = strings.Split(config.StatusColumns, ",")
+	columns := make([]interface{}, len(columnKeys))
+	for i, keyString := range columnKeys {
+		key, _ := strconv.Atoi(keyString)
+		columns[i] = record[key]
+	}
+
+	var status = fmt.Sprintf(config.StatusFormat, columns...)
+	if TweetMaxLength <= utf8.RuneCountInString(status) {
+		return getStatus(config, records)
+	} else {
+		return status
+	}
+}
+
+func getRandomRecord(config Config, records [][]string) []string {
 	c, err := redis.Dial("tcp", ":6379")
 	if err != nil {
 		panic(err)
@@ -95,7 +111,7 @@ func getRandomRecord(name string, records [][]string) []string {
 	defer c.Close()
 	rand.Seed(time.Now().UnixNano())
 	for _, i := range rand.Perm(len(records)) {
-		var key = fmt.Sprintf("%s%d", name, i)
+		var key = fmt.Sprintf("%s%d", config.Name, i)
 		used, err := redis.Bool(c.Do("GET", key))
 		if err != nil || used != true {
 			c.Do("SET", key, true)
@@ -103,20 +119,20 @@ func getRandomRecord(name string, records [][]string) []string {
 		}
 	}
 	for i := 0; i < len(records); i++ {
-		var key = fmt.Sprintf("%s%d", name, i)
+		var key = fmt.Sprintf("%s%d", config.Name, i)
 		c.Do("SET", key, false)
 	}
-	return getRandomRecord(name, records)
+	return getRandomRecord(config, records)
 }
 
-func getSequentialRecord(name string, records [][]string) []string {
+func getSequentialRecord(config Config, records [][]string) []string {
 	c, err := redis.Dial("tcp", ":6379")
 	if err != nil {
 		panic(err)
 	}
 	defer c.Close()
 	for i := 0; i < len(records); i++ {
-		var key = fmt.Sprintf("%s%d", name, i)
+		var key = fmt.Sprintf("%s%d", config.Name, i)
 		used, err := redis.Bool(c.Do("GET", key))
 		if err != nil || used != true {
 			c.Do("SET", key, true)
@@ -124,8 +140,8 @@ func getSequentialRecord(name string, records [][]string) []string {
 		}
 	}
 	for i := 0; i < len(records); i++ {
-		var key = fmt.Sprintf("%s%d", name, i)
+		var key = fmt.Sprintf("%s%d", config.Name, i)
 		c.Do("SET", key, false)
 	}
-	return getSequentialRecord(name, records)
+	return getSequentialRecord(config, records)
 }

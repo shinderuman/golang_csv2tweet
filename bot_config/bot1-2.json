@@ -1,0 +1,28 @@
+[
+	{
+		"name": "shinderumanbot1",
+		"type": "seq",
+		"period": 1,
+		"twitter_consumer_key": "",
+		"twitter_consumer_secret": "",
+		"twitter_access_token": "",
+		"twitter_access_token_secret": "",
+		"csv_filename": "seiken3.csv",
+		"status_format": "%s「%s」",
+		"status_columns": "0,1",
+		"enabled": false
+	},
+	{
+		"name": "shinderumanbot2",
+		"type": "random",
+		"period": 1,
+		"twitter_consumer_key": "",
+		"twitter_consumer_secret": "",
+		"twitter_access_token": "",
+		"twitter_access_token_secret": "",
+		"csv_filename": "seiken3.csv",
+		"status_format": "%s「%s」",
+		"status_columns": "0,1",
+		"enabled": false
+	}
+]

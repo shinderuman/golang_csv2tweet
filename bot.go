@@ -21,7 +21,7 @@ const (
 	CsvPath        = "/Users/shinderuman2/src/golang/csv2tweet/csv/"
 	/*
 		ConfigFilename = "/home/shinderuman/src/bot_config/config.json"
-		CsvPath        = "/home/shinderuman/src/bot_csv/bot_csv/"
+		CsvPath        = "/home/shinderuman/src/bot_csv/"
 	*/
 	TweetMaxLength = 140
 )
